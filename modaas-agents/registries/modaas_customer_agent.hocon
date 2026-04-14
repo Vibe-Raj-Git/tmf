@@ -1,0 +1,181 @@
+# MoDaaS Customer Agent Network
+# Guides enterprise customer through TMF921 intent capture
+# Submits to BSS and coordinates with NAI Governance Agent
+# Pattern follows neuro-san-studio advanced_calculator.hocon
+
+{
+    include "registries/llm_config.hocon",
+
+    "tools": [
+
+        # ── Front Man ─────────────────────────────────────────────────────────
+        {
+            "name": "customer_front_man"
+            "function": {
+                "description": "MaaS Assistant — guides enterprise customers through requesting AI Connectivity Services on the MoDaaS Enterprise Portal."
+            }
+            "instructions": """
+You are MaaS Assistant, the customer-facing AI for the MoDaaS Enterprise Portal.
+Your role is to guide enterprise customers through requesting AI Connectivity Services
+on the TMF Catalyst 2026 intent-based network platform.
+
+CRITICAL RULES — YOU MUST FOLLOW THESE WITHOUT EXCEPTION:
+- NEVER assume, infer, or fabricate any field value. If the customer has not provided a value, you MUST ask for it.
+- NEVER call tmf921_generator or bss_submitter until ALL fields in ALL sections have been explicitly provided by the customer.
+- NEVER use placeholder values like "ENT12345", "MaaS Enterprise", "LLaMA", "High", or any default.
+- If the customer provides their first message with only a location and agent count, that is Section 2 and 6 only. You must still collect Sections 1, 3, 4, and 5 before proceeding.
+- You MUST ask each section as a separate message. Do not ask all sections at once.
+- After collecting all sections, show a full summary and wait for explicit confirmation before calling any tools.
+
+Service types you support:
+- AI Inference Connectivity (LLM access with SLA)
+- Edge AI Access
+- GPU-as-a-Service
+- AI-Optimized Network Slice (AR/VR, 8K video, drones)
+- Ultra-low Latency Services (URLLC — telesurgery, industrial automation)
+
+CONVERSATION FLOW — FOLLOW THIS EXACTLY:
+Step 1: Customer sends first message. Acknowledge it. Ask for Section 1.
+Step 2: Collect Section 1. Ask for Section 2.
+Step 3: Collect Section 2. Ask for Section 3.
+Step 4: Collect Section 3. Ask for Section 4.
+Step 5: Collect Section 4. Ask for Section 5.
+Step 6: Collect Section 5. Ask for Section 6 if not already provided.
+Step 7: Show FULL summary of ALL collected fields. Ask for confirmation.
+Step 8: On explicit confirmation only: call location_validator, then tmf921_generator, then bss_submitter.
+Step 9: Report BSS acknowledgement. Include the complete TMF921 JSON block exactly as returned. Show Intent Reference and BSS state.
+
+FIELDS TO COLLECT — DO NOT PROCEED WITHOUT ALL OF THESE:
+Section 1 — Identity:
+  - Organisation name
+  - Customer ID
+  - Service type
+
+Section 2 — Location and Period:
+  - Source location (city and country)
+  - Target location (city and country)
+  - Service start date or relative phrase (e.g. "in two weeks", "next month")
+  - Service duration (e.g. "30 days", "5 days")
+
+Section 3 — QoS Requirements:
+  - Latency requirement (must be less than 10ms for compliance — tell the customer this)
+  - Bandwidth requirement
+  - Availability SLA (e.g. 99.95%)
+
+Section 4 — LLM and AI Requirements:
+  - LLM model name (e.g. GPT-OSS-120b, Llama-3-70b)
+  - Data confidentiality (must be "do not use data for training" for compliance — tell the customer this)
+  - Time to first token requirement
+  - Context window size (e.g. 128k)
+  - Tool/function calling support required (yes or no)
+  - Maximum input token price (e.g. max 3 dollars per MTok)
+  - Maximum output token price (e.g. max 20 dollars per MTok)
+
+Section 5 — Sustainability:
+  - Minimum green/sustainability score (1 to 5, minimum 3 required for compliance — tell the customer this)
+
+Section 6 — Scale:
+  - Number of AI agents (if not already provided in the first message)
+
+CONFIDENTIALITY GUIDANCE:
+When asking for confidentiality, tell the customer: "For sovereign compliance, data must not be used for model training. Please confirm your confidentiality requirement is 'do not use data for training'."
+
+LATENCY GUIDANCE:
+When asking for latency, tell the customer: "The maximum allowed latency for sovereign compliance is strictly less than 10ms. Please specify a value less than 10ms, for example 9ms or 8ms."
+
+GREEN SCORE GUIDANCE:
+When asking for green score, tell the customer: "The minimum green score required for sovereign compliance is 3 out of 5."
+"""
+            "tools": [
+                "location_validator"
+                "tmf921_generator"
+                "bss_submitter"
+            ]
+        }
+
+        # ── Location Validator (CodedTool) ────────────────────────────────────
+        {
+            "name": "location_validator"
+            "function": {
+                "description": "Validates that source and target locations are within the supported GCC or EU zone per TMF915 RULE-001."
+                "parameters": {
+                    "type": "object"
+                    "properties": {
+                        "source_location": {
+                            "type": "string"
+                            "description": "Source/entry point location (city, country)"
+                        }
+                        "target_location": {
+                            "type": "string"
+                            "description": "Target/destination location (city, country)"
+                        }
+                    }
+                    "required": ["source_location", "target_location"]
+                }
+            }
+            "class": "modaas_customer_agent.location_validator.LocationValidator"
+        }
+
+        # ── TMF921 Generator (CodedTool) ──────────────────────────────────────
+        {
+            "name": "tmf921_generator"
+            "function": {
+                "description": "Assembles a valid TMF921 Intent JSON document from the collected questionnaire answers. Returns the complete intent document ready for BSS submission."
+                "parameters": {
+                    "type": "object"
+                    "properties": {
+                        "org_name": { "type": "string", "description": "Customer organisation name" }
+                        "customer_id": { "type": "string", "description": "Customer ID" }
+                        "service_type": { "type": "string", "description": "AI service type requested" }
+                        "source_location": { "type": "string", "description": "Source/entry point location" }
+                        "target_location": { "type": "string", "description": "Target/destination location" }
+                        "start_date": { "type": "string", "description": "Service start date or relative phrase" }
+                        "duration": { "type": "string", "description": "Service duration" }
+                        "agent_count": { "type": "string", "description": "Number of AI agents" }
+                        "bandwidth": { "type": "string", "description": "Required bandwidth" }
+                        "latency": { "type": "string", "description": "Required latency" }
+                        "availability": { "type": "string", "description": "Availability SLA" }
+                        "llm_model": { "type": "string", "description": "Required LLM model" }
+                        "confidentiality": { "type": "string", "description": "Data confidentiality requirement" }
+                        "time_to_first_token": { "type": "string", "description": "Required time to first token" }
+                        "context_window": { "type": "string", "description": "Required context window size" }
+                        "tool_support": { "type": "boolean", "description": "Whether tool/function calling is required" }
+                        "input_token_price": { "type": "string", "description": "Maximum input token price in $/MTok" }
+                        "output_token_price": { "type": "string", "description": "Maximum output token price in $/MTok" }
+                        "green_score": { "type": "string", "description": "Minimum green/sustainability score (1-5)" }
+                        "original_request": { "type": "string", "description": "The customer's original free-text request" }
+                    }
+                    "required": [
+                        "org_name", "customer_id", "service_type",
+                        "source_location", "target_location",
+                        "start_date", "duration", "agent_count",
+                        "bandwidth", "latency", "availability",
+                        "llm_model", "confidentiality",
+                        "green_score", "original_request"
+                    ]
+                }
+            }
+            "class": "modaas_customer_agent.tmf921_generator.TMF921Generator"
+        }
+
+        # ── BSS Submitter (CodedTool) ─────────────────────────────────────────
+        {
+            "name": "bss_submitter"
+            "function": {
+                "description": "Submits the TMF921 Intent JSON to the BSS (Etiya). Returns intentRef, api_key, and acknowledgement state."
+                "parameters": {
+                    "type": "object"
+                    "properties": {
+                        "tmf921_json": {
+                            "type": "string"
+                            "description": "The complete TMF921 Intent JSON document as a string"
+                        }
+                    }
+                    "required": ["tmf921_json"]
+                }
+            }
+            "class": "modaas_customer_agent.bss_submitter.BSSSubmitter"
+        }
+
+    ]
+}

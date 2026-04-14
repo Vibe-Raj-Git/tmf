@@ -1,0 +1,10 @@
+# MoDaaS Agent Registry — Customer Agent Server (port 30011)
+# NAI Governance Agent runs on a SEPARATE server (port 8001)
+# via modaas_nai_server.py with registries/nai_manifest.hocon
+# Two separate server processes required on Windows — single server
+# causes Tornado event loop deadlock with two agent networks.
+
+{
+    "modaas_customer_agent.hocon": true,
+    "modaas_nai_agent.hocon": false
+}

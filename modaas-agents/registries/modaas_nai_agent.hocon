@@ -1,0 +1,53 @@
+# MoDaaS NAI Governance Agent — Phase 2C
+# Architecture: minimal LLM front man → single CodedTool orchestrator
+# The LLM front man routes all requests to nai_governance_tool.
+# ALL governance logic is deterministic Python inside nai_governance_tool.
+# No LLM involvement in TMF915 validation, key generation, or audit writing.
+
+{
+    include "registries/llm_config.hocon",
+
+    "tools": [
+
+        # ── Front Man (LLM — required by Neuro SAN, minimal role) ─────────────
+        # Per advanced_calculator.hocon: front man cannot be a CodedTool.
+        # Instructions are intentionally minimal — just route to nai_governance_tool.
+        {
+            "name": "nai_governance_front_man"
+            "function": {
+                "description": "NAI Governance Agent for MoDaaS (TMF Catalyst C26.0.952). Validates AI inference intents against TMF915 sovereign rules and issues compliance keys."
+            }
+            "instructions": """You are the NAI Governance Agent for the MoDaaS Enterprise Portal.
+
+When you receive any request, immediately call the nai_governance_tool with the full message text.
+Do not attempt to validate, interpret, or modify the request yourself.
+Return the exact response from nai_governance_tool to the caller."""
+
+            "tools": [
+                "nai_governance_tool"
+            ]
+        }
+
+        # ── NAI Governance Tool (CodedTool — all deterministic logic) ─────────
+        # Single orchestrator: validates TMF915, generates compliance key,
+        # pushes to LLM Router, writes Neo4j audit. No LLM anywhere in the chain.
+        {
+            "name": "nai_governance_tool"
+            "function": {
+                "description": "Deterministic TMF915 governance orchestrator. Handles both rule definition requests (Step 2) and full validation requests (Step 3)."
+                "parameters": {
+                    "type": "object"
+                    "properties": {
+                        "request_text": {
+                            "type": "string"
+                            "description": "The full request text — either a rules request or a validation request with all TMF915 parameters"
+                        }
+                    }
+                    "required": ["request_text"]
+                }
+            }
+            "class": "modaas_nai_agent.nai_governance_tool.NAIGovernanceTool"
+        }
+
+    ]
+}
