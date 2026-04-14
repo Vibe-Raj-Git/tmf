@@ -1,0 +1,7 @@
+# MoDaaS NAI Agent Registry
+# Used exclusively by modaas_nai_server.py (port 8001)
+# Only registers the NAI Governance Agent — not the Customer Agent
+
+{
+    "modaas_nai_agent.hocon": true
+}
